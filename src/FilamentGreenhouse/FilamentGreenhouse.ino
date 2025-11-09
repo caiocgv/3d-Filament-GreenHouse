@@ -4,42 +4,40 @@
  * 
  * Features:
  * - WiFi web server with real-time monitoring
- * - Temperature and humidity sensing (DHT22)
+ * - Temperature sensing (LM35)
  * - Adjustable temperature control
  * - Timer functionality
  * - Relay control for heating element
+ * - HTML pages loaded from SPIFFS filesystem
  * 
  * Hardware:
  * - ESP8266 (NodeMCU or Wemos D1 Mini)
- * - DHT22 temperature/humidity sensor
+ * - LM35 temperature sensor
  * - Relay module (5V)
  * - Heating element (40-60W)
  */
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#include <DHT.h>
+#include <LittleFS.h>
 
 // WiFi Configuration
 const char* ssid = "YOUR_WIFI_SSID";          // Replace with your WiFi SSID
 const char* password = "YOUR_WIFI_PASSWORD";  // Replace with your WiFi password
 
 // Pin Definitions
-#define DHTPIN 2          // DHT22 sensor connected to GPIO2 (D4)
-#define DHTTYPE DHT22     // DHT 22 (AM2302)
+#define LM35PIN A0        // LM35 sensor connected to A0 (analog input)
 #define RELAYPIN 5        // Relay connected to GPIO5 (D1)
 
 // Temperature Control Parameters
 #define MAX_TEMP 75       // Maximum allowed temperature (safety limit)
 #define TEMP_HYSTERESIS 2 // Temperature hysteresis in Celsius
 
-// Initialize sensor and web server
-DHT dht(DHTPIN, DHTTYPE);
+// Initialize web server
 ESP8266WebServer server(80);
 
 // Global Variables
 float currentTemp = 0;
-float currentHumidity = 0;
 float targetTemp = 50;
 bool systemOn = false;
 bool heaterOn = false;
@@ -57,13 +55,23 @@ void setup() {
   Serial.println("3D Filament Greenhouse Dryer");
   Serial.println("=================================");
   
+  // Initialize LittleFS
+  if (!LittleFS.begin()) {
+    Serial.println("Failed to mount LittleFS!");
+    Serial.println("Please upload filesystem image using:");
+    Serial.println("Arduino IDE: Tools -> ESP8266 LittleFS Data Upload");
+    Serial.println("Or use the 'mklittlefs' tool");
+  } else {
+    Serial.println("LittleFS mounted successfully");
+  }
+  
   // Initialize pins
   pinMode(RELAYPIN, OUTPUT);
   digitalWrite(RELAYPIN, LOW);  // Start with heater off
   
-  // Initialize DHT sensor
-  dht.begin();
-  Serial.println("DHT22 sensor initialized");
+  // Initialize ADC for LM35 reading
+  pinMode(LM35PIN, INPUT);
+  Serial.println("LM35 temperature sensor initialized");
   
   // Connect to WiFi
   WiFi.mode(WIFI_STA);
@@ -136,24 +144,27 @@ void loop() {
 }
 
 void readSensors() {
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  // Read LM35 sensor
+  // LM35 outputs 10mV per degree Celsius
+  // ESP8266 ADC reads 0-1V as 0-1023 (10-bit ADC)
+  // Temperature (°C) = (analogRead * (1.0 / 1023.0)) * 100
   
-  // Check if readings are valid
-  if (isnan(h) || isnan(t)) {
-    Serial.println("Failed to read from DHT sensor!");
+  int adcValue = analogRead(LM35PIN);
+  float voltage = (adcValue / 1023.0) * 1.0;  // Convert to voltage (0-1V range)
+  float temperature = voltage * 100.0;         // LM35: 10mV/°C = 0.01V/°C
+  
+  // Validate reading (LM35 range: 0°C to 100°C)
+  if (temperature < -10 || temperature > 150) {
+    Serial.println("Failed to read from LM35 sensor! Invalid temperature reading.");
     return;
   }
   
-  currentTemp = t;
-  currentHumidity = h;
+  currentTemp = temperature;
   
   // Print to serial for debugging
   Serial.print("Temperature: ");
   Serial.print(currentTemp);
-  Serial.print("°C | Humidity: ");
-  Serial.print(currentHumidity);
-  Serial.print("% | Heater: ");
+  Serial.print("°C | Heater: ");
   Serial.print(heaterOn ? "ON" : "OFF");
   Serial.print(" | Target: ");
   Serial.print(targetTemp);
@@ -199,8 +210,15 @@ void controlTemperature() {
 }
 
 void handleRoot() {
-  String html = getWebInterface();
-  server.send(200, "text/html", html);
+  // Serve index.html from LittleFS
+  File file = LittleFS.open("/index.html", "r");
+  if (!file) {
+    server.send(404, "text/plain", "File not found. Please upload filesystem image.");
+    return;
+  }
+  
+  server.streamFile(file, "text/html");
+  file.close();
 }
 
 void handleStatus() {
@@ -214,7 +232,6 @@ void handleStatus() {
   
   String json = "{";
   json += "\"temperature\":" + String(currentTemp, 1) + ",";
-  json += "\"humidity\":" + String(currentHumidity, 1) + ",";
   json += "\"targetTemp\":" + String(targetTemp, 1) + ",";
   json += "\"heaterOn\":" + String(heaterOn ? "true" : "false") + ",";
   json += "\"systemOn\":" + String(systemOn ? "true" : "false") + ",";
@@ -317,446 +334,4 @@ void handlePower() {
 
 void handleNotFound() {
   server.send(404, "text/plain", "404: Not Found");
-}
-
-String getWebInterface() {
-  String html = R"=====(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Filament Greenhouse Dryer</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            max-width: 600px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        
-        .readings {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .reading {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            color: white;
-        }
-        
-        .reading-label {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 5px;
-        }
-        
-        .reading-value {
-            font-size: 36px;
-            font-weight: bold;
-        }
-        
-        .reading-unit {
-            font-size: 18px;
-            opacity: 0.9;
-        }
-        
-        .control-group {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .control-label {
-            font-size: 16px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
-            display: block;
-        }
-        
-        .slider-container {
-            margin-bottom: 10px;
-        }
-        
-        input[type="range"] {
-            width: 100%;
-            height: 8px;
-            border-radius: 5px;
-            background: #ddd;
-            outline: none;
-            -webkit-appearance: none;
-        }
-        
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #667eea;
-            cursor: pointer;
-        }
-        
-        input[type="range"]::-moz-range-thumb {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #667eea;
-            cursor: pointer;
-            border: none;
-        }
-        
-        .slider-value {
-            text-align: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-            margin-top: 5px;
-        }
-        
-        .timer-inputs {
-            display: grid;
-            grid-template-columns: 1fr 1fr auto;
-            gap: 10px;
-            align-items: end;
-        }
-        
-        .input-group {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .input-group label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        
-        input[type="number"] {
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            text-align: center;
-        }
-        
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        
-        button:hover {
-            transform: translateY(-2px);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        .power-button {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            margin-top: 10px;
-        }
-        
-        .power-button.off {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-        
-        .status-indicators {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 20px;
-        }
-        
-        .indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .indicator-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #ddd;
-        }
-        
-        .indicator-dot.active {
-            background: #4caf50;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .timer-display {
-            text-align: center;
-            font-size: 20px;
-            color: #667eea;
-            font-weight: 600;
-            margin-top: 10px;
-        }
-        
-        @media (max-width: 480px) {
-            .readings {
-                grid-template-columns: 1fr;
-            }
-            
-            .timer-inputs {
-                grid-template-columns: 1fr;
-            }
-            
-            .timer-inputs button {
-                width: 100%;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🌡️ Filament Greenhouse Dryer</h1>
-        <div class="subtitle">Smart Filament Drying System</div>
-        
-        <div class="readings">
-            <div class="reading">
-                <div class="reading-label">Temperature</div>
-                <div class="reading-value">
-                    <span id="temp">--</span>
-                    <span class="reading-unit">°C</span>
-                </div>
-            </div>
-            <div class="reading">
-                <div class="reading-label">Humidity</div>
-                <div class="reading-value">
-                    <span id="humidity">--</span>
-                    <span class="reading-unit">%</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="status-indicators">
-            <div class="indicator">
-                <div class="indicator-dot" id="systemDot"></div>
-                <span>System: <span id="systemStatus">OFF</span></span>
-            </div>
-            <div class="indicator">
-                <div class="indicator-dot" id="heaterDot"></div>
-                <span>Heater: <span id="heaterStatus">OFF</span></span>
-            </div>
-            <div class="indicator">
-                <div class="indicator-dot" id="timerDot"></div>
-                <span>Timer: <span id="timerStatus">OFF</span></span>
-            </div>
-        </div>
-        
-        <div class="control-group">
-            <label class="control-label">Target Temperature</label>
-            <div class="slider-container">
-                <input type="range" id="tempSlider" min="0" max="70" value="50" step="1">
-                <div class="slider-value"><span id="targetTemp">50</span>°C</div>
-            </div>
-        </div>
-        
-        <div class="control-group">
-            <label class="control-label">Drying Timer</label>
-            <div class="timer-inputs">
-                <div class="input-group">
-                    <label>Hours</label>
-                    <input type="number" id="hours" min="0" max="24" value="4">
-                </div>
-                <div class="input-group">
-                    <label>Minutes</label>
-                    <input type="number" id="minutes" min="0" max="59" value="0">
-                </div>
-                <button onclick="setTimer()">Set Timer</button>
-            </div>
-            <div class="timer-display" id="timerDisplay">--:--:--</div>
-        </div>
-        
-        <button class="power-button" id="powerBtn" onclick="togglePower()">
-            Turn ON
-        </button>
-    </div>
-    
-    <script>
-        let systemOn = false;
-        
-        // Update target temp display when slider moves
-        document.getElementById('tempSlider').addEventListener('input', function() {
-            document.getElementById('targetTemp').textContent = this.value;
-        });
-        
-        // Update target temp when slider is released
-        document.getElementById('tempSlider').addEventListener('change', function() {
-            setTemperature(this.value);
-        });
-        
-        function updateStatus() {
-            fetch('/status')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('temp').textContent = data.temperature.toFixed(1);
-                    document.getElementById('humidity').textContent = data.humidity.toFixed(1);
-                    document.getElementById('targetTemp').textContent = data.targetTemp.toFixed(0);
-                    document.getElementById('tempSlider').value = data.targetTemp;
-                    
-                    systemOn = data.systemOn;
-                    
-                    // Update system status
-                    document.getElementById('systemStatus').textContent = data.systemOn ? 'ON' : 'OFF';
-                    document.getElementById('systemDot').classList.toggle('active', data.systemOn);
-                    
-                    // Update heater status
-                    document.getElementById('heaterStatus').textContent = data.heaterOn ? 'ON' : 'OFF';
-                    document.getElementById('heaterDot').classList.toggle('active', data.heaterOn);
-                    
-                    // Update timer status
-                    document.getElementById('timerStatus').textContent = data.timerRunning ? 'RUNNING' : 'OFF';
-                    document.getElementById('timerDot').classList.toggle('active', data.timerRunning);
-                    
-                    // Update timer display
-                    if (data.timerRunning && data.remainingTime > 0) {
-                        const hours = Math.floor(data.remainingTime / 3600);
-                        const minutes = Math.floor((data.remainingTime % 3600) / 60);
-                        const seconds = data.remainingTime % 60;
-                        document.getElementById('timerDisplay').textContent = 
-                            String(hours).padStart(2, '0') + ':' + 
-                            String(minutes).padStart(2, '0') + ':' + 
-                            String(seconds).padStart(2, '0');
-                    } else {
-                        document.getElementById('timerDisplay').textContent = '--:--:--';
-                    }
-                    
-                    // Update power button
-                    const powerBtn = document.getElementById('powerBtn');
-                    if (data.systemOn) {
-                        powerBtn.textContent = 'Turn OFF';
-                        powerBtn.classList.add('off');
-                    } else {
-                        powerBtn.textContent = 'Turn ON';
-                        powerBtn.classList.remove('off');
-                    }
-                })
-                .catch(error => console.error('Error fetching status:', error));
-        }
-        
-        function setTemperature(temp) {
-            fetch('/setTemp', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({temp: parseFloat(temp)})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Temperature set to:', data.targetTemp);
-                }
-            })
-            .catch(error => console.error('Error setting temperature:', error));
-        }
-        
-        function setTimer() {
-            const hours = parseInt(document.getElementById('hours').value) || 0;
-            const minutes = parseInt(document.getElementById('minutes').value) || 0;
-            const seconds = (hours * 3600) + (minutes * 60);
-            
-            if (seconds <= 0) {
-                alert('Please enter a valid time');
-                return;
-            }
-            
-            fetch('/setTimer', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({seconds: seconds})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Timer set to:', data.timerSet, 'seconds');
-                    updateStatus();
-                }
-            })
-            .catch(error => console.error('Error setting timer:', error));
-        }
-        
-        function togglePower() {
-            fetch('/power', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({on: !systemOn})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('System power:', data.systemOn ? 'ON' : 'OFF');
-                    updateStatus();
-                }
-            })
-            .catch(error => console.error('Error toggling power:', error));
-        }
-        
-        // Update status every 2 seconds
-        setInterval(updateStatus, 2000);
-        
-        // Initial update
-        updateStatus();
-    </script>
-</body>
-</html>
-)=====";
-  
-  return html;
 }
