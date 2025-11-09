@@ -1,0 +1,96 @@
+Component,Quantity,Specification,Example Part Number,Estimated Cost (USD),Notes,Purchase Links
+ESP8266 Module,1,"NodeMCU V3 or Wemos D1 Mini, ESP-12E/F",ESP8266-12E,$3-8,"WiFi microcontroller, choose based on availability","AliExpress, Amazon, Adafruit"
+DHT22 Sensor,1,"Temperature/Humidity sensor, AM2302","DHT22/AM2302",$3-10,"DHT11 works but less accurate (±2°C vs ±0.5°C)","Amazon, Adafruit, SparkFun"
+Relay Module,1,"5V Single Channel, 10A rated, optocoupler isolated",SRD-05VDC-SL-C,$1-3,"Ensure 5V coil voltage, 10A is sufficient for most heaters","AliExpress, Amazon"
+Resistor 10kΩ,1,"1/4W through-hole or SMD","CFR-25 10K",$0.10,"Pull-up for DHT22 data line","Any electronics supplier"
+Heating Element,1,"40-60W, 12V silicone heater pad or PTC heater","40W 12V Silicone",$8-15,"Choose based on enclosure size, PTC self-limiting recommended","Amazon, AliExpress"
+Power Supply (5V),1,"5V 2A USB adapter or barrel jack","5V 2A Adapter",$3-8,"For ESP8266 and relay, USB adapters work great","Amazon, any USB charger"
+Power Supply (12V),1,"12V 5A if using 12V heater","12V 5A Adapter",$8-12,"Only needed for separate heater power, match heater voltage","Amazon"
+Jumper Wires,20,"Male-to-male, male-to-female, female-to-female mix","Dupont Wires",$3-5,"Various types for breadboard and connections","Amazon, AliExpress"
+Breadboard,1,"400 or 830 tie-points (optional for prototyping)","MB-102",$2-5,"Optional - for testing before soldering","Amazon, AliExpress"
+USB Cable,1,"Micro-USB or Type-C depending on ESP8266 module","USB Micro-B",$2-3,"For programming and power","Any electronics supplier"
+Enclosure,1,"Clear plastic container, 10-15L capacity","Food container",$10-20,"Must be heat-resistant, airtight seal preferred","IKEA, Amazon, Container Store"
+Desiccant Packets,10-20,"Silica gel packets, reusable","Silica Gel 10g",$5-10,"Optional but recommended for passive moisture control","Amazon"
+Heat Shrink Tubing,1,"Assorted sizes kit","Heat Shrink Kit",$5-10,"For insulating connections","Amazon, any electronics supplier"
+Cable Ties,20,"Various sizes, 100-200mm","Zip Ties",$3-5,"For wire management","Any hardware store
+Screws M3,8,"M3 x 8mm machine screws","M3x8 SS",$2-3,"For mounting components, stainless preferred","Hardware store, Amazon"
+Screws M2.5,4,"M2.5 x 6mm machine screws","M2.5x6",$2-3,"For ESP8266 module mounting","Hardware store, Amazon"
+Heat-set Inserts M3,8,"M3 x 5mm brass heat-set inserts","M3x5 Insert",$3-5,"For 3D printed enclosure","Amazon, McMaster-Carr"
+Wire 22AWG,5m,"22AWG stranded wire, various colors","22AWG Kit",$5-10,"For connections, multiple colors recommended","Amazon, any electronics supplier"
+Solder,1,"60/40 or 63/37 rosin core solder","Rosin Core Solder",$8-15,"For permanent connections (optional)","Any electronics supplier"
+Double-sided Tape,1,"High-strength foam tape","3M VHB",$5-8,"For mounting heater pad","Hardware store, Amazon"
+
+Optional Components (Enhancements):
+Component,Quantity,Specification,Example Part Number,Estimated Cost (USD),Notes,Purchase Links
+Small Fan,1,"12V 40mm or 60mm DC fan","40mm 12V Fan",$3-5,"For air circulation inside enclosure","Amazon, AliExpress"
+OLED Display,1,"0.96" I2C OLED 128x64","SSD1306 0.96in",$3-8,"For displaying status without web interface","Amazon, AliExpress"
+Push Buttons,2-3,"6mm tactile push buttons","6mm Tactile",$1-2,"For manual controls (optional)","Any electronics supplier"
+LED Indicators,3,"5mm LED (Red, Green, Blue)","5mm LED",$0.50-1,"For status indication","Any electronics supplier"
+Resistor 220Ω,3,"For LED current limiting","1/4W 220Ω",$0.30,"For LED protection","Any electronics supplier"
+Temperature Sensor (Backup),1,"DS18B20 digital temperature sensor","DS18B20",$2-5,"Alternative/redundant temperature sensing","Amazon, Adafruit"
+Buck Converter,1,"LM2596 5V output from 12V","LM2596 5V",$2-4,"If using single 12V power supply for both heater and ESP8266","Amazon, AliExpress"
+
+PCB Manufacturing (If using custom PCB):
+Item,Quantity,Specification,Estimated Cost (USD),Notes,Supplier
+PCB Fabrication,5,"2-layer, 80x60mm, 1.6mm thick",$2-5,"Most manufacturers have 5-piece minimum","JLCPCB, PCBWay, OSH Park"
+PCB Assembly,Optional,"SMD component assembly","$10-50","Consider if not comfortable soldering SMD","JLCPCB Assembly Service"
+
+3D Printing Filament (If printing enclosure):
+Material,Amount,Type,Estimated Cost (USD),Notes
+PETG Filament,500g-1kg,"Any brand, heat-resistant",$15-25,"Recommended for heat resistance up to 70°C"
+ABS Filament,500g-1kg,"Alternative to PETG",$15-25,"Higher heat resistance but harder to print"
+
+Tools Required (If not already owned):
+Tool,Estimated Cost (USD),Notes,Alternative
+Soldering Iron,,$20-50,"Temperature controlled preferred, 350-400°C","Can use breadboard to avoid soldering"
+Multimeter,$10-30,"For testing voltages and continuity","Essential for troubleshooting"
+Wire Strippers,$5-15,"For preparing wires","Scissors work in a pinch"
+Screwdriver Set,$10-20,"Phillips and flathead","Common household item"
+Heat Gun,$15-30,"For heat shrink tubing","Lighter works but less safe"
+Helping Hands,$8-15,"Soldering assistant with clips","Optional but very helpful"
+3D Printer Access,Varies,"For printing enclosure","Can use online 3D printing services"
+
+Total Estimated Cost:
+Base Project (breadboard): $35-70 USD
+Complete Project (with enclosure): $60-120 USD
+With Custom PCB: $70-150 USD
+With All Optional Features: $100-200 USD
+
+Cost-Saving Tips:
+1. Use existing USB power adapter (most have 5V 1-2A output)
+2. Salvage enclosure from food storage containers
+3. Buy components in bulk kits (resistors, LEDs, wires)
+4. Use breadboard instead of custom PCB for prototyping
+5. Skip 3D printed enclosure initially, use cardboard box
+6. Purchase from AliExpress for lowest prices (longer shipping)
+7. Check local electronics recycling for salvageable parts
+
+Bulk Purchase Recommendations:
+- Arduino/ESP8266 starter kits often include many needed components
+- Sensor kits provide DHT22 and alternatives at lower cost
+- Wire and resistor assortment kits are economical
+- Consider group buys for PCB manufacturing to share costs
+
+Where to Buy:
+USA: Amazon, Adafruit, SparkFun, Digi-Key, Mouser, Micro Center
+Europe: RS Components, Farnell, Conrad Electronic, Reichelt
+Worldwide: AliExpress, Banggood (longer shipping, lower prices)
+PCBs: JLCPCB, PCBWay, OSH Park, Seeed Studio, Eurocircuits
+
+Notes:
+- Prices are estimates and vary by region and supplier
+- Shipping costs not included
+- Bulk purchases reduce per-unit cost
+- Quality varies - read reviews before purchasing
+- Some suppliers offer student/educational discounts
+- Consider local availability for faster project start
+
+Safety Equipment:
+- Safety glasses for soldering
+- Fire extinguisher nearby when testing
+- ESD strap for handling electronics (optional but recommended)
+- Proper ventilation for soldering
+- Insulated tools for any mains voltage work
+
+Updated: 2025
+Version: 1.0
