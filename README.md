@@ -1,6 +1,6 @@
 # 3D Filament Greenhouse Dryer
 
-An ESP8266-based smart filament dryer designed to keep your 3D printing filaments dry and ready for use. This project combines temperature control, humidity monitoring, and a user-friendly web interface to create the perfect environment for storing and drying hygroscopic filaments like PLA, PETG, Nylon, and TPU.
+An ESP8266-based smart filament dryer designed to keep your 3D printing filaments dry and ready for use. This project combines precise temperature control and a user-friendly web interface to create the perfect environment for storing and drying hygroscopic filaments like PLA, PETG, Nylon, and TPU.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -30,7 +30,7 @@ This Filament Greenhouse Dryer solves these problems by maintaining a controlled
 
 ## Features
 
-- **Real-time Monitoring**: View current temperature and humidity levels
+- **Real-time Monitoring**: View current temperature
 - **Adjustable Temperature Control**: Set target temperature (up to 70°C recommended for most filaments)
 - **Timer Function**: Set drying duration (1 minute to 24 hours)
 - **Web Portal Interface**: Control everything from your smartphone, tablet, or computer
@@ -39,6 +39,7 @@ This Filament Greenhouse Dryer solves these problems by maintaining a controlled
 - **Manual Control**: Turn the heater on/off at any time
 - **Temperature Safety**: Prevents overheating with built-in limits
 - **Responsive Design**: Web interface works on all devices
+- **LittleFS Filesystem**: HTML pages served from internal flash memory
 
 ## How It Works
 
@@ -52,10 +53,11 @@ The Filament Greenhouse Dryer uses an ESP8266 microcontroller as its brain, coor
    - Controls the heating element via relay
    - Reads sensor data and manages the timer
 
-2. **DHT22 Temperature/Humidity Sensor**:
-   - Measures ambient temperature (accurate to ±0.5°C)
-   - Monitors relative humidity (accurate to ±2%)
-   - Provides data every 2 seconds to the ESP8266
+2. **LM35 Temperature Sensor**:
+   - Measures ambient temperature (accurate to ±0.5°C at 25°C)
+   - Analog output: 10mV per degree Celsius
+   - Temperature range: 0°C to 100°C
+   - Provides readings via ESP8266's ADC (A0 pin)
 
 3. **Relay Module**:
    - Switches the heating element on/off based on temperature readings
@@ -110,12 +112,11 @@ The web portal uses AJAX to communicate with the ESP8266:
 | Component | Specification | Quantity | Notes |
 |-----------|--------------|----------|-------|
 | ESP8266 | NodeMCU or Wemos D1 Mini | 1 | WiFi-enabled microcontroller |
-| DHT22 Sensor | Temperature/Humidity sensor | 1 | DHT11 works but less accurate |
+| LM35 Sensor | Temperature sensor (TO-92 package) | 1 | Analog output, ±0.5°C accuracy |
 | Relay Module | 5V, 10A rated | 1 | Single channel, active low/high |
 | Heating Element | 40-60W, 12V or mains voltage | 1 | Silicone heater pad recommended |
 | Power Supply | 5V 2A (for ESP8266) | 1 | USB power adapter works |
 | Power Supply | 12V or mains (for heater) | 1 | Depends on heater choice |
-| Resistor | 10kΩ | 1 | Pull-up for DHT22 data line |
 | Jumper Wires | - | Several | For connections |
 | PCB (Optional) | Custom designed | 1 | See hardware/pcb folder |
 
@@ -131,11 +132,11 @@ The web portal uses AJAX to communicate with the ESP8266:
 
 - **Arduino IDE** (version 1.8.19 or later) or **PlatformIO**
 - **ESP8266 Board Package** for Arduino
+- **ESP8266 LittleFS Data Upload Plugin** (for uploading HTML files)
 - Required Libraries:
   - ESP8266WiFi (included with board package)
   - ESP8266WebServer (included with board package)
-  - DHT sensor library (by Adafruit)
-  - Adafruit Unified Sensor library
+  - LittleFS (included with board package)
 
 ## Hardware Assembly
 
@@ -143,18 +144,17 @@ The web portal uses AJAX to communicate with the ESP8266:
 
 ```
 ESP8266 (NodeMCU/Wemos D1 Mini)
-├── D4 (GPIO2)  → DHT22 Data Pin
-├── 3.3V        → DHT22 VCC
-├── GND         → DHT22 GND
+├── A0          → LM35 Output Pin
+├── 3.3V or 5V  → LM35 VCC
+├── GND         → LM35 GND
 ├── D1 (GPIO5)  → Relay Signal Pin
 ├── 5V          → Relay VCC
 └── GND         → Relay GND
 
-DHT22 Sensor
-├── Pin 1 (VCC) → 3.3V
-├── Pin 2 (Data)→ D4 + 10kΩ pull-up to 3.3V
-├── Pin 3 (NC)  → Not connected
-└── Pin 4 (GND) → GND
+LM35 Temperature Sensor (TO-92 package, flat side facing you)
+├── Pin 1 (left - VCC) → 3.3V or 5V
+├── Pin 2 (middle - Output) → A0 (analog input)
+└── Pin 3 (right - GND) → GND
 
 Relay Module
 ├── VCC         → 5V
@@ -188,8 +188,9 @@ Relay Module
    - Position relay away from heat source
 
 5. **Install Sensor**:
-   - Mount DHT22 sensor to measure internal temperature
-   - Ensure good airflow around sensor
+   - Mount LM35 sensor to measure internal temperature
+   - Ensure flat side faces away from heat source
+   - Keep sensor in open air for accurate readings
    - Avoid direct contact with heating element
 
 6. **Safety Check**:
@@ -212,12 +213,16 @@ Relay Module
 5. Go to **Tools → Board → Boards Manager**
 6. Search for "esp8266" and install "ESP8266 by ESP8266 Community"
 
-### Step 2: Install Required Libraries
+### Step 2: Install LittleFS Upload Plugin
 
-1. Go to **Sketch → Include Library → Manage Libraries**
-2. Install the following:
-   - "DHT sensor library" by Adafruit
-   - "Adafruit Unified Sensor" by Adafruit
+1. Download the ESP8266 LittleFS Data Upload plugin:
+   - Go to: https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases
+   - Download the latest `.zip` file
+
+2. Install the plugin:
+   - Extract to `Arduino/tools/ESP8266LittleFS/tool/`
+   - Restart Arduino IDE
+   - See `src/FilamentGreenhouse/FILESYSTEM_UPLOAD.md` for detailed instructions
 
 ### Step 3: Configure WiFi Credentials
 
@@ -228,15 +233,23 @@ Relay Module
    const char* password = "YOUR_WIFI_PASSWORD";
    ```
 
-### Step 4: Upload Code
+### Step 4: Upload Filesystem (HTML Files)
 
 1. Connect ESP8266 to computer via USB
+2. Select board and port in Arduino IDE
+3. Go to **Tools → ESP8266 LittleFS Data Upload**
+4. Wait for upload to complete
+5. This uploads the `data/index.html` file to ESP8266's flash memory
+
+### Step 5: Upload Code
+
+1. Keep ESP8266 connected via USB
 2. Select board: **Tools → Board → ESP8266 Boards → NodeMCU 1.0** (or your specific board)
 3. Select port: **Tools → Port → [Your COM/USB port]**
 4. Click **Upload** button
 5. Wait for upload to complete
 
-### Step 5: Access Web Interface
+### Step 6: Access Web Interface
 
 1. Open Serial Monitor (**Tools → Serial Monitor**) at 115200 baud
 2. Press reset button on ESP8266
@@ -251,10 +264,9 @@ The web portal provides an intuitive interface with the following features:
 ### Main Dashboard
 
 - **Temperature Display**: Large, easy-to-read current temperature
-- **Humidity Display**: Current humidity percentage
 - **Target Temperature**: Slider to set desired temperature (0-70°C)
 - **Timer Control**: Set drying duration in hours and minutes
-- **Status Indicator**: Shows if heater is currently ON or OFF
+- **Status Indicators**: Shows if system, heater, and timer are currently ON or OFF
 - **Manual Override**: Emergency stop or manual start button
 
 ### Controls
@@ -341,7 +353,6 @@ Returns current system status as JSON.
 ```json
 {
   "temperature": 23.5,
-  "humidity": 45.2,
   "targetTemp": 50,
   "heaterOn": true,
   "timerRunning": true,
@@ -414,9 +425,9 @@ Turns system on or off.
 ├── src/
 │   └── FilamentGreenhouse/
 │       ├── FilamentGreenhouse.ino     # Main Arduino sketch
-│       ├── WebServer.h                # Web server functionality
-│       ├── TemperatureControl.h       # Temperature control logic
-│       └── WebInterface.h             # HTML/CSS/JS for web portal
+│       ├── FILESYSTEM_UPLOAD.md       # Instructions for uploading HTML files
+│       └── data/                      # HTML files for LittleFS filesystem
+│           └── index.html             # Web interface HTML/CSS/JS
 ├── hardware/
 │   ├── pcb/
 │   │   ├── gerber/                    # Gerber files for PCB manufacturing
@@ -434,7 +445,7 @@ Turns system on or off.
 │   └── enclosure/
 │       ├── base.stl                   # 3D printable base
 │       ├── lid.stl                    # 3D printable lid
-│       ├── sensor_mount.stl           # DHT22 sensor bracket
+│       ├── sensor_mount.stl           # LM35 sensor bracket
 │       ├── esp8266_mount.stl          # ESP8266 mounting bracket
 │       └── README.md                  # Printing instructions
 ├── docs/
@@ -444,7 +455,7 @@ Turns system on or off.
 │   │   └── web_interface.png
 │   └── datasheets/                    # Component datasheets
 │       ├── ESP8266_datasheet.pdf
-│       ├── DHT22_datasheet.pdf
+│       ├── LM35_datasheet.pdf
 │       └── relay_module_datasheet.pdf
 └── examples/
     ├── basic_test/                    # Simple test sketches
@@ -471,10 +482,12 @@ Turns system on or off.
 - **Same network**: Ensure device is on same WiFi network as ESP8266
 - **Firewall**: Check if firewall is blocking port 80
 - **Restart ESP8266**: Power cycle the device
+- **Filesystem not uploaded**: Check Serial Monitor for "Failed to mount LittleFS" - need to upload filesystem using LittleFS Data Upload tool
 
 ### Temperature Not Changing
 
-- **Sensor connection**: Check DHT22 wiring and pull-up resistor
+- **Sensor connection**: Check LM35 wiring (VCC, GND, Output to A0)
+- **Sensor orientation**: Flat side should face away from pins, pins down: VCC(left), Output(middle), GND(right)
 - **Sensor failure**: Try reading sensor values in serial monitor
 - **Heater power**: Verify heater is receiving power through relay
 - **Relay clicking**: Listen for relay activation sound

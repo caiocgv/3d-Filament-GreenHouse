@@ -4,9 +4,10 @@
 
 ### Prerequisites
 - ESP8266 board (NodeMCU or Wemos D1 Mini)
-- DHT22 temperature/humidity sensor
+- LM35 temperature sensor
 - 5V relay module
 - Arduino IDE with ESP8266 support
+- ESP8266 LittleFS Data Upload plugin
 
 ### Quick Setup
 
@@ -19,20 +20,19 @@
    http://arduino.esp8266.com/stable/package_esp8266com_index.json
    ```
 
-3. **Install Required Libraries**
+3. **Install LittleFS Upload Plugin**
    ```
-   Sketch → Include Library → Manage Libraries
-   Search and install:
-   - "DHT sensor library" by Adafruit
-   - "Adafruit Unified Sensor"
+   Download from: https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases
+   Extract to: Arduino/tools/ESP8266LittleFS/tool/
+   Restart Arduino IDE
    ```
 
 4. **Wire Up Your Hardware**
    ```
-   ESP8266 → DHT22
-   - 3.3V → VCC
-   - GPIO2 (D4) → Data (with 10kΩ pull-up to 3.3V)
-   - GND → GND
+   ESP8266 → LM35
+   - 3.3V or 5V → VCC (Pin 1 - left)
+   - A0 → Output (Pin 2 - middle)
+   - GND → GND (Pin 3 - right)
 
    ESP8266 → Relay
    - GPIO5 (D1) → Signal
@@ -48,17 +48,23 @@
    const char* password = "YOUR_WIFI_PASSWORD";
    ```
 
-6. **Upload Code**
+6. **Upload Filesystem (HTML)**
    - Connect ESP8266 to USB
+   - Select board and port
+   - Go to: Tools → ESP8266 LittleFS Data Upload
+   - Wait for upload to complete
+
+7. **Upload Code**
+   - Keep ESP8266 connected
    - Select board: Tools → Board → NodeMCU 1.0
    - Select port: Tools → Port → [Your Port]
    - Click Upload ⬆️
 
-7. **Find Your Device**
+8. **Find Your Device**
    - Open Serial Monitor (115200 baud)
    - Look for IP address (e.g., `192.168.1.100`)
 
-8. **Access Web Interface**
+9. **Access Web Interface**
    - Open browser
    - Go to `http://[IP_ADDRESS]`
    - Control your filament dryer! 🎉
@@ -67,7 +73,7 @@
 
 - **Set Temperature**: Use the slider (0-70°C)
 - **Set Timer**: Enter hours and minutes, click "Set Timer"
-- **Monitor**: Watch real-time temperature and humidity
+- **Monitor**: Watch real-time temperature
 - **Power Control**: Use the ON/OFF button
 
 ## 🔧 Testing Individual Components
@@ -107,11 +113,12 @@ Before full assembly, test each component:
 - ESP8266 only supports 2.4GHz WiFi
 
 **Sensor not reading?**
-- Verify wiring
-- Check 10kΩ pull-up resistor
+- Verify wiring (VCC, GND, Output to A0)
+- Check LM35 orientation (flat side facing away)
 
 **Web page won't load?**
 - Verify IP address in Serial Monitor
+- Check if filesystem was uploaded (LittleFS Data Upload)
 - Ensure device is on same WiFi network
 
 ## 📞 Need Help?
