@@ -21,9 +21,8 @@
 #include <ESP8266WebServer.h>
 #include <LittleFS.h>
 
-// WiFi Configuration
-const char* ssid = "YOUR_WIFI_SSID";          // Replace with your WiFi SSID
-const char* password = "YOUR_WIFI_PASSWORD";  // Replace with your WiFi password
+// WiFi Configuration - Access Point Mode
+const char* ap_ssid = "FilamentDryer";     // Access Point name
 
 // Pin Definitions
 #define LM35PIN A0        // LM35 sensor connected to A0 (analog input)
@@ -73,27 +72,23 @@ void setup() {
   pinMode(LM35PIN, INPUT);
   Serial.println("LM35 temperature sensor initialized");
   
-  // Connect to WiFi
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
+  // Setup Access Point
+  WiFi.mode(WIFI_AP);
+  Serial.print("Setting up Access Point...");
   
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
+  bool result = WiFi.softAP(ap_ssid, NULL); // No password for open AP
   
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected!");
+  if (result) {
+    Serial.println("\nAccess Point created successfully!");
+    Serial.print("Network name (SSID): ");
+    Serial.println(ap_ssid);
     Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    Serial.println(WiFi.softAPIP());
     Serial.print("Access web interface at: http://");
-    Serial.println(WiFi.localIP());
+    Serial.println(WiFi.softAPIP());
   } else {
-    Serial.println("\nFailed to connect to WiFi!");
-    Serial.println("Please check credentials and try again.");
+    Serial.println("\nFailed to create Access Point!");
+    Serial.println("Please check configuration and try again.");
   }
   
   // Setup web server routes
