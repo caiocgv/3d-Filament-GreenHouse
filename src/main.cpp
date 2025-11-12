@@ -19,6 +19,7 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <DNSServer.h>
 #include <LittleFS.h>
 
 // WiFi Configuration - Access Point Mode
@@ -32,8 +33,12 @@ const char* ap_ssid = "FilamentDryer";     // Access Point name
 #define MAX_TEMP 75       // Maximum allowed temperature (safety limit)
 #define TEMP_HYSTERESIS 2 // Temperature hysteresis in Celsius
 
-// Initialize web server
+// Initialize web server and DNS server for captive portal
 ESP8266WebServer server(80);
+DNSServer dnsServer;
+
+// Captive portal constants
+const byte DNS_PORT = 53;
 
 // Global Variables
 float currentTemp = 0;
@@ -45,98 +50,6 @@ unsigned long timerDuration = 0;        // Timer duration in seconds
 unsigned long timerStartTime = 0;       // Timer start time in millis
 unsigned long lastSensorRead = 0;
 unsigned long lastTempCheck = 0;
-
-void setup() {
-  Serial.begin(115200);
-  delay(100);
-  
-  Serial.println("\n\n=================================");
-  Serial.println("3D Filament Greenhouse Dryer");
-  Serial.println("=================================");
-  
-  // Initialize LittleFS
-  if (!LittleFS.begin()) {
-    Serial.println("Failed to mount LittleFS!");
-    Serial.println("Please upload filesystem image using:");
-    Serial.println("Arduino IDE: Tools -> ESP8266 LittleFS Data Upload");
-    Serial.println("Or use the 'mklittlefs' tool");
-  } else {
-    Serial.println("LittleFS mounted successfully");
-  }
-  
-  // Initialize pins
-  pinMode(RELAYPIN, OUTPUT);
-  digitalWrite(RELAYPIN, LOW);  // Start with heater off
-  
-  // Initialize ADC for LM35 reading
-  pinMode(LM35PIN, INPUT);
-  Serial.println("LM35 temperature sensor initialized");
-  
-  // Setup Access Point
-  WiFi.mode(WIFI_AP);
-  Serial.print("Setting up Access Point...");
-  
-  bool result = WiFi.softAP(ap_ssid, NULL); // No password for open AP
-  
-  if (result) {
-    Serial.println("\nAccess Point created successfully!");
-    Serial.print("Network name (SSID): ");
-    Serial.println(ap_ssid);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.softAPIP());
-    Serial.print("Access web interface at: http://");
-    Serial.println(WiFi.softAPIP());
-  } else {
-    Serial.println("\nFailed to create Access Point!");
-    Serial.println("Please check configuration and try again.");
-  }
-  
-  // Setup web server routes
-  server.on("/", handleRoot);
-  server.on("/status", handleStatus);
-  server.on("/setTemp", HTTP_POST, handleSetTemp);
-  server.on("/setTimer", HTTP_POST, handleSetTimer);
-  server.on("/power", HTTP_POST, handlePower);
-  server.onNotFound(handleNotFound);
-  
-  // Start web server
-  server.begin();
-  Serial.println("Web server started");
-  Serial.println("=================================\n");
-  
-  // Initial sensor reading
-  readSensors();
-}
-
-void loop() {
-  // Handle web server requests
-  server.handleClient();
-  
-  // Read sensors every 2 seconds
-  if (millis() - lastSensorRead > 2000) {
-    readSensors();
-    lastSensorRead = millis();
-  }
-  
-  // Temperature control check every second
-  if (millis() - lastTempCheck > 1000) {
-    controlTemperature();
-    lastTempCheck = millis();
-  }
-  
-  // Timer management
-  if (timerRunning) {
-    unsigned long elapsedSeconds = (millis() - timerStartTime) / 1000;
-    if (elapsedSeconds >= timerDuration) {
-      // Timer expired
-      Serial.println("Timer expired - shutting down");
-      systemOn = false;
-      timerRunning = false;
-      digitalWrite(RELAYPIN, LOW);
-      heaterOn = false;
-    }
-  }
-}
 
 void readSensors() {
   // Read LM35 sensor
@@ -327,6 +240,121 @@ void handlePower() {
   server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid power command\"}");
 }
 
+void handleCaptivePortal() {
+  // Simple redirect to the main interface
+  IPAddress apIP = WiFi.softAPIP();
+  String redirectURL = "http://" + apIP.toString() + "/";
+  
+  server.sendHeader("Location", redirectURL);
+  server.send(302, "text/plain", "");
+}
+
 void handleNotFound() {
+  // Simple 404 response
   server.send(404, "text/plain", "404: Not Found");
+}
+
+void setup() {
+  Serial.begin(9600);
+  delay(100);
+  
+  Serial.println("\n\n=================================");
+  Serial.println("3D Filament Greenhouse Dryer");
+  Serial.println("=================================");
+  
+  // Initialize LittleFS
+  if (!LittleFS.begin()) {
+    Serial.println("Failed to mount LittleFS!");
+    Serial.println("Please upload filesystem image using:");
+    Serial.println("Arduino IDE: Tools -> ESP8266 LittleFS Data Upload");
+    Serial.println("Or use the 'mklittlefs' tool");
+  } else {
+    Serial.println("LittleFS mounted successfully");
+  }
+  
+  // Initialize pins
+  pinMode(RELAYPIN, OUTPUT);
+  digitalWrite(RELAYPIN, LOW);  // Start with heater off
+  
+  // Initialize ADC for LM35 reading
+  pinMode(LM35PIN, INPUT);
+  Serial.println("LM35 temperature sensor initialized");
+  
+  // Setup Access Point
+  WiFi.mode(WIFI_AP);
+  Serial.print("Setting up Access Point...");
+  
+  bool result = WiFi.softAP(ap_ssid, NULL); // No password for open AP
+  
+  if (result) {
+    Serial.println("\nAccess Point created successfully!");
+    Serial.print("Network name (SSID): ");
+    Serial.println(ap_ssid);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.softAPIP());
+    Serial.print("Access web interface at: http://");
+    Serial.println(WiFi.softAPIP());
+    
+    // Start DNS server for captive portal
+    dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+    Serial.println("DNS server started for captive portal");
+  } else {
+    Serial.println("\nFailed to create Access Point!");
+    Serial.println("Please check configuration and try again.");
+  }
+  
+  // Setup web server routes
+  server.on("/", handleRoot);
+  server.on("/status", handleStatus);
+  server.on("/setTemp", HTTP_POST, handleSetTemp);
+  server.on("/setTimer", HTTP_POST, handleSetTimer);
+  server.on("/power", HTTP_POST, handlePower);
+  
+  // Basic captive portal routes
+  server.on("/generate_204", handleCaptivePortal);
+  server.on("/hotspot-detect.html", handleCaptivePortal);
+  server.on("/connecttest.txt", handleCaptivePortal);
+  
+  server.onNotFound(handleNotFound);
+  
+  // Start web server
+  server.begin();
+  Serial.println("Web server started");
+  Serial.println("=================================\n");
+  
+  // Initial sensor reading
+  readSensors();
+}
+
+void loop() {
+  // Handle DNS requests for captive portal
+  dnsServer.processNextRequest();
+  
+  // Handle web server requests
+  server.handleClient();
+  
+  // Read sensors every 2 seconds
+  if (millis() - lastSensorRead > 2000) {
+    readSensors();
+    lastSensorRead = millis();
+  }
+  
+  // Temperature control check every second
+  if (millis() - lastTempCheck > 1000) {
+    controlTemperature();
+    lastTempCheck = millis();
+  }
+  
+  // Timer management
+  if (timerRunning) {
+    unsigned long elapsedSeconds = (millis() - timerStartTime) / 1000;
+    if (elapsedSeconds >= timerDuration) {
+      // Timer expired
+      Serial.println("Timer expired - shutting down");
+      systemOn = false;
+      timerRunning = false;
+      digitalWrite(RELAYPIN, LOW);
+      heaterOn = false;
+    }
+  }
 }
