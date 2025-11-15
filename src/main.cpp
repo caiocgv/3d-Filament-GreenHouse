@@ -58,7 +58,7 @@ void readSensors() {
   // Temperature (°C) = (analogRead * (1.0 / 1023.0)) * 100
   
   int adcValue = analogRead(LM35PIN);
-  float voltage = (adcValue / 1023.0) * 1.0;  // Convert to voltage (0-1V range)
+  float voltage = (adcValue / 1023.0) * 3.3;  // Convert to voltage (0-3.3V range)
   float temperature = voltage * 100.0;         // LM35: 10mV/°C = 0.01V/°C
   
   // Validate reading (LM35 range: 0°C to 100°C)
