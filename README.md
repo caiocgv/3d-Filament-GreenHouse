@@ -34,12 +34,63 @@ This Filament Greenhouse Dryer solves these problems by maintaining a controlled
 - **Adjustable Temperature Control**: Set target temperature (up to 70°C recommended for most filaments)
 - **Timer Function**: Set drying duration (1 minute to 24 hours)
 - **Web Portal Interface**: Control everything from your smartphone, tablet, or computer
-- **WiFi Connectivity**: Connect to your home network for easy access
+- **WiFi Access Point Mode**: Creates "FilamentDryer" WiFi network - no router needed
 - **Automatic Shutoff**: System turns off automatically when timer expires
 - **Manual Control**: Turn the heater on/off at any time
 - **Temperature Safety**: Prevents overheating with built-in limits
+- **LED Status Indicators**: Visual feedback without serial monitor
 - **Responsive Design**: Web interface works on all devices
 - **LittleFS Filesystem**: HTML pages served from internal flash memory
+
+## LED Status Indicators
+
+The onboard LED provides visual feedback without needing a serial monitor. All systems use LED patterns for status indication:
+
+### Main Project (Filament Dryer)
+
+**Startup Sequence:**
+- **3 rapid flashes** → Hardware initialized, boot started
+- **10 rapid flashes** → Filesystem error (upload data/index.html)
+- **2 slow blinks (300ms)** → WiFi Access Point ready
+
+**Normal Operation:**
+- **LED ON (solid)** → Heater is ACTIVE (heating filament)
+- **LED OFF** → Heater is INACTIVE (temperature reached or system off)
+
+**Error Indicators:**
+- **Rapid continuous blinking** → WiFi Access Point failed (critical error)
+
+### Relay Test
+
+**Startup:**
+- **5 rapid flashes** → Setup complete, board booted
+
+**Normal Operation:**
+- **LED ON (2 seconds)** → Relay energized (ON)
+- **LED OFF (2 seconds)** → Relay de-energized (OFF)
+- Relay should click in sync with LED changes
+
+### Minimal Test
+
+**Startup:**
+- **5 rapid flashes** → Setup complete
+
+**Normal Operation:**
+- **Blinks: 1 second ON, 1 second OFF** → Board running normally
+
+### LED Status Quick Reference
+
+| Pattern | Meaning |
+|---------|---------|
+| 3 rapid flashes | Main project boot |
+| 5 rapid flashes | Test boot complete |
+| 2 slow blinks | WiFi ready |
+| 10 rapid flashes | Filesystem error |
+| Continuous rapid | Critical error |
+| Slow toggle (2s) | Relay test running |
+| ON/OFF with heater | Heater status |
+
+**Note:** No serial monitor required! LED provides all status information visually.
 
 ## How It Works
 
@@ -63,6 +114,7 @@ The Filament Greenhouse Dryer uses an ESP8266 microcontroller as its brain, coor
    - Switches the heating element on/off based on temperature readings
    - Electrically isolates the low-voltage control circuit from high-voltage heater
    - LED indicator shows heater status
+   - **Note**: Uses INPUT/OUTPUT pin mode switching (GPIO as INPUT for OFF, OUTPUT HIGH for ON) to handle relay modules with internal pull-up resistors
 
 4. **Heating Element**:
    - Low-wattage heater (typically 40-60W) safely raises temperature
@@ -113,7 +165,7 @@ The web portal uses AJAX to communicate with the ESP8266:
 |-----------|--------------|----------|-------|
 | ESP8266 | NodeMCU or Wemos D1 Mini | 1 | WiFi-enabled microcontroller |
 | LM35 Sensor | Temperature sensor (TO-92 package) | 1 | Analog output, ±0.5°C accuracy |
-| Relay Module | 5V, 10A rated | 1 | Single channel, active low/high |
+| Relay Module | 5V, 10A rated | 1 | Single channel, works with modules that have internal pull-ups |
 | Heating Element | 40-60W, 12V or mains voltage | 1 | Silicone heater pad recommended |
 | Power Supply | 5V 2A (for ESP8266) | 1 | USB power adapter works |
 | Power Supply | 12V or mains (for heater) | 1 | Depends on heater choice |
@@ -147,7 +199,7 @@ ESP8266 (NodeMCU/Wemos D1 Mini)
 ├── A0          → LM35 Output Pin
 ├── 3.3V or 5V  → LM35 VCC
 ├── GND         → LM35 GND
-├── D1 (GPIO5)  → Relay Signal Pin
+├── D2 (GPIO4)  → Relay Signal Pin (Safe pin, no boot conflicts)
 ├── 5V          → Relay VCC
 └── GND         → Relay GND
 
@@ -159,7 +211,7 @@ LM35 Temperature Sensor (TO-92 package, flat side facing you)
 Relay Module
 ├── VCC         → 5V
 ├── GND         → GND
-├── IN          → D1 (GPIO5)
+├── IN          → D2 (GPIO4)
 ├── COM         → Heater Power In
 ├── NO (Normally Open) → Heater Positive
 └── Heater Negative → Power Supply Negative
@@ -498,7 +550,8 @@ Turns system on or off.
 - **Target too high**: Lower the target temperature
 - **Sensor placement**: Ensure sensor measures correct location
 - **Code issue**: Check temperature control logic in code
-- **Relay stuck**: Test relay manually or replace
+- **Relay stuck ON**: Some relay modules have internal pull-up resistors - this project uses INPUT/OUTPUT pin mode switching to handle this
+- **Relay module compatibility**: If using a different relay module and experiencing stuck-on issues, the code handles this by setting GPIO to INPUT (floating) for OFF and OUTPUT HIGH for ON
 
 ### Timer Not Working
 

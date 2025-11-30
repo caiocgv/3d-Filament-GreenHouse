@@ -35,7 +35,7 @@
    - GND → GND (Pin 3 - right)
 
    ESP8266 → Relay
-   - GPIO5 (D1) → Signal
+   - GPIO4 (D2) → Signal (Safe pin, no boot conflicts)
    - 5V → VCC
    - GND → GND
    ```

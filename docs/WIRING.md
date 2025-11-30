@@ -7,7 +7,7 @@
 │                    ESP8266 (NodeMCU / Wemos D1 Mini)                │
 │                                                                       │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  [USB Port]  5V  3.3V  GND  D1(GPIO5)  D4(GPIO2)  RST  EN   │   │
+│  │  [USB Port]  5V  3.3V  GND  A0  D2(GPIO4)  D4(GPIO2)  RST   │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 └───────────────┬────┬─────┬──────────┬──────────┬─────────────────────┘
                 │    │     │          │          │
@@ -50,8 +50,9 @@
 NodeMCU Label │ GPIO Pin │ Connection          │ Notes
 ──────────────┼──────────┼─────────────────────┼────────────────────
 D4            │ GPIO2    │ DHT22 Data Pin      │ With 10kΩ pull-up
-D1            │ GPIO5    │ Relay Signal        │ Controls relay
-3V3           │ 3.3V     │ DHT22 VCC, Pull-up  │ Power for sensor
+D2            │ GPIO4    │ Relay Signal        │ Safe pin, no boot conflicts
+A0            │ ADC      │ LM35 Output         │ Temperature sensor
+3V3           │ 3.3V     │ DHT22/LM35 VCC      │ Power for sensors
 5V            │ 5V       │ Relay VCC           │ Power for relay
 GND           │ GND      │ Common Ground       │ All grounds connect
 ```
@@ -88,7 +89,7 @@ GND           │ GND      │ Common Ground       │ All grounds connect
 Control Side:
 - VCC: Connect to 5V
 - GND: Connect to GND
-- Signal: Connect to GPIO5 (D1)
+- Signal: Connect to GPIO4 (D2) - Safe pin, no boot conflicts
 
 Switch Side:
 - COM (Common): Connect to heater power input
@@ -111,7 +112,8 @@ Switch Side:
 ```
 6. ESP8266 D4 (GPIO2) → DHT22 Pin 2 (DATA)
 7. 10kΩ Resistor: Connect between DHT22 Pin 2 (DATA) and 3.3V
-8. ESP8266 D1 (GPIO5) → Relay Signal Pin
+8. ESP8266 A0 (ADC) → LM35 Pin 2 (Output)
+9. ESP8266 D2 (GPIO4) → Relay Signal Pin (Safe pin, no boot conflicts)
 ```
 
 ### Step 3: Heater Connections (⚠️ SAFETY CRITICAL)
@@ -147,7 +149,7 @@ Switch Side:
     │  │                                     │     │
     │  │  Jumper Wires connecting:           │     │
     │  │  - Power (3.3V, 5V, GND)            │     │
-    │  │  - Signal (GPIO2, GPIO5)            │     │
+    │  │  - Signal (GPIO2 DHT22, GPIO4 Relay, A0 LM35) │     │
     │  │                                     │     │
     │  │  +                              -   │     │
     │  └─────────────────────────────────────┘     │
