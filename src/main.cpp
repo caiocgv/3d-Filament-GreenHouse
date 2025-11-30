@@ -27,7 +27,8 @@ const char* ap_ssid = "FilamentDryer";     // Access Point name
 
 // Pin Definitions
 #define LM35PIN A0        // LM35 sensor connected to A0 (analog input)
-#define RELAYPIN 5        // Relay connected to GPIO5 (D1)
+#define RELAYPIN 4        // Relay connected to GPIO4 (D2) - Safe pin, no serial conflicts
+#define LED_PIN LED_BUILTIN  // Onboard LED to show heater status
 
 // Temperature Control Parameters
 #define MAX_TEMP 75       // Maximum allowed temperature (safety limit)
@@ -63,27 +64,18 @@ void readSensors() {
   
   // Validate reading (LM35 range: 0°C to 100°C)
   if (temperature < -10 || temperature > 150) {
-    Serial.println("Failed to read from LM35 sensor! Invalid temperature reading.");
-    return;
+    return;  // Invalid reading, skip update
   }
   
   currentTemp = temperature;
-  
-  // Print to serial for debugging
-  Serial.print("Temperature: ");
-  Serial.print(currentTemp);
-  Serial.print("°C | Heater: ");
-  Serial.print(heaterOn ? "ON" : "OFF");
-  Serial.print(" | Target: ");
-  Serial.print(targetTemp);
-  Serial.println("°C");
 }
 
 void controlTemperature() {
   if (!systemOn) {
     // System is off, ensure heater is off
     if (heaterOn) {
-      digitalWrite(RELAYPIN, LOW);
+      pinMode(RELAYPIN, INPUT);  // Disable pin (floating) to turn relay OFF
+      digitalWrite(LED_PIN, HIGH);  // LED OFF (active LOW)
       heaterOn = false;
     }
     return;
@@ -91,10 +83,10 @@ void controlTemperature() {
   
   // Safety check - never exceed maximum temperature
   if (currentTemp >= MAX_TEMP) {
-    digitalWrite(RELAYPIN, LOW);
+    pinMode(RELAYPIN, INPUT);  // Disable pin (floating) to turn relay OFF
+    digitalWrite(LED_PIN, HIGH);  // LED OFF (active LOW)
     heaterOn = false;
     systemOn = false;
-    Serial.println("SAFETY: Maximum temperature exceeded! System shutdown.");
     return;
   }
   
@@ -102,16 +94,17 @@ void controlTemperature() {
   if (currentTemp < (targetTemp - TEMP_HYSTERESIS)) {
     // Temperature too low, turn heater on
     if (!heaterOn) {
-      digitalWrite(RELAYPIN, HIGH);
+      pinMode(RELAYPIN, OUTPUT);
+      digitalWrite(RELAYPIN, HIGH);  // Enable pin and set HIGH to turn relay ON
+      digitalWrite(LED_PIN, LOW);  // LED ON (active LOW)
       heaterOn = true;
-      Serial.println("Heater turned ON");
     }
   } else if (currentTemp > targetTemp) {
     // Temperature reached or exceeded, turn heater off
     if (heaterOn) {
-      digitalWrite(RELAYPIN, LOW);
+      pinMode(RELAYPIN, INPUT);  // Disable pin (floating) to turn relay OFF
+      digitalWrite(LED_PIN, HIGH);  // LED OFF (active LOW)
       heaterOn = false;
-      Serial.println("Heater turned OFF");
     }
   }
   // Within hysteresis range: maintain current state
@@ -166,8 +159,6 @@ void handleSetTemp() {
         float newTemp = tempStr.toFloat();
         if (newTemp >= 0 && newTemp <= 70) {
           targetTemp = newTemp;
-          Serial.print("Target temperature set to: ");
-          Serial.println(targetTemp);
           
           String json = "{\"success\":true,\"targetTemp\":" + String(targetTemp, 1) + "}";
           server.send(200, "application/json", json);
@@ -200,10 +191,6 @@ void handleSetTimer() {
           timerRunning = true;
           systemOn = true;
           
-          Serial.print("Timer set to: ");
-          Serial.print(seconds);
-          Serial.println(" seconds");
-          
           String json = "{\"success\":true,\"timerSet\":" + String(seconds) + "}";
           server.send(200, "application/json", json);
           return;
@@ -225,11 +212,9 @@ void handlePower() {
     systemOn = turnOn;
     if (!systemOn) {
       timerRunning = false;
-      digitalWrite(RELAYPIN, LOW);
+      pinMode(RELAYPIN, INPUT);  // Disable pin (floating) to turn relay OFF
+      digitalWrite(LED_PIN, HIGH);  // LED OFF (active LOW)
       heaterOn = false;
-      Serial.println("System turned OFF");
-    } else {
-      Serial.println("System turned ON");
     }
     
     String json = "{\"success\":true,\"systemOn\":" + String(systemOn ? "true" : "false") + "}";
@@ -255,52 +240,66 @@ void handleNotFound() {
 }
 
 void setup() {
-  Serial.begin(9600);
-  delay(100);
+  // Initialize hardware FIRST (prevents DTR/RTS issues)
   
-  Serial.println("\n\n=================================");
-  Serial.println("3D Filament Greenhouse Dryer");
-  Serial.println("=================================");
+  // Initialize relay pin as INPUT (floating) - relay starts OFF
+  pinMode(RELAYPIN, INPUT);
   
-  // Initialize LittleFS
-  if (!LittleFS.begin()) {
-    Serial.println("Failed to mount LittleFS!");
-    Serial.println("Please upload filesystem image using:");
-    Serial.println("Arduino IDE: Tools -> ESP8266 LittleFS Data Upload");
-    Serial.println("Or use the 'mklittlefs' tool");
-  } else {
-    Serial.println("LittleFS mounted successfully");
+  // Initialize onboard LED to mirror heater status
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);  // LED OFF (active LOW) - heater starts off
+  
+  // Visual boot indicator - 3 rapid flashes
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(LED_PIN, LOW);   // LED ON
+    delay(100);
+    digitalWrite(LED_PIN, HIGH);  // LED OFF
+    delay(100);
   }
-  
-  // Initialize pins
-  pinMode(RELAYPIN, OUTPUT);
-  digitalWrite(RELAYPIN, LOW);  // Start with heater off
   
   // Initialize ADC for LM35 reading
   pinMode(LM35PIN, INPUT);
-  Serial.println("LM35 temperature sensor initialized");
+  
+  delay(200);
+  
+  // Initialize LittleFS
+  if (!LittleFS.begin()) {
+    // Flash LED rapidly 10 times to indicate filesystem error
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(LED_PIN, LOW);
+      delay(50);
+      digitalWrite(LED_PIN, HIGH);
+      delay(50);
+    }
+  }
   
   // Setup Access Point
   WiFi.mode(WIFI_AP);
-  Serial.print("Setting up Access Point...");
   
   bool result = WiFi.softAP(ap_ssid, NULL); // No password for open AP
   
   if (result) {
-    Serial.println("\nAccess Point created successfully!");
-    Serial.print("Network name (SSID): ");
-    Serial.println(ap_ssid);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.softAPIP());
-    Serial.print("Access web interface at: http://");
-    Serial.println(WiFi.softAPIP());
+    // Visual indicator - 2 slow blinks = WiFi AP Ready
+    for (int i = 0; i < 2; i++) {
+      digitalWrite(LED_PIN, LOW);
+      delay(300);
+      digitalWrite(LED_PIN, HIGH);
+      delay(300);
+    }
     
     // Start DNS server for captive portal
     dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
-    Serial.println("DNS server started for captive portal");
   } else {
-    Serial.println("\nFailed to create Access Point!");
-    Serial.println("Please check configuration and try again.");
+    // Visual error - rapid blinking (SOS pattern)
+    while (true) {
+      for (int i = 0; i < 10; i++) {
+        digitalWrite(LED_PIN, LOW);
+        delay(100);
+        digitalWrite(LED_PIN, HIGH);
+        delay(100);
+      }
+      delay(1000);
+    }
   }
   
   // Setup web server routes
@@ -319,8 +318,6 @@ void setup() {
   
   // Start web server
   server.begin();
-  Serial.println("Web server started");
-  Serial.println("=================================\n");
   
   // Initial sensor reading
   readSensors();
@@ -350,10 +347,10 @@ void loop() {
     unsigned long elapsedSeconds = (millis() - timerStartTime) / 1000;
     if (elapsedSeconds >= timerDuration) {
       // Timer expired
-      Serial.println("Timer expired - shutting down");
       systemOn = false;
       timerRunning = false;
-      digitalWrite(RELAYPIN, LOW);
+      pinMode(RELAYPIN, INPUT);  // Disable pin (floating) to turn relay OFF
+      digitalWrite(LED_PIN, HIGH);  // LED OFF (active LOW)
       heaterOn = false;
     }
   }
