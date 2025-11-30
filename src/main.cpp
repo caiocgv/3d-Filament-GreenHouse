@@ -48,17 +48,28 @@ bool systemOn = false;
 bool heaterOn = false;
 bool timerRunning = false;
 unsigned long timerDuration = 0;        // Timer duration in seconds
+
+// Temperature filtering variables
+#define TEMP_SAMPLES 10   // Number of samples for moving average filter
+float tempReadings[TEMP_SAMPLES];
+int tempIndex = 0;
+bool tempArrayFilled = false;
 unsigned long timerStartTime = 0;       // Timer start time in millis
 unsigned long lastSensorRead = 0;
 unsigned long lastTempCheck = 0;
 
 void readSensors() {
-  // Read LM35 sensor
-  // LM35 outputs 10mV per degree Celsius
-  // ESP8266 ADC reads 0-1V as 0-1023 (10-bit ADC)
-  // Temperature (°C) = (analogRead * (1.0 / 1023.0)) * 100
+  // Read LM35 sensor with oversampling for noise reduction
+  // Take multiple readings and average them
+  long adcSum = 0;
+  const int numSamples = 5;
   
-  int adcValue = analogRead(LM35PIN);
+  for (int i = 0; i < numSamples; i++) {
+    adcSum += analogRead(LM35PIN);
+    delay(10);  // Small delay between readings
+  }
+  
+  int adcValue = adcSum / numSamples;
   float voltage = (adcValue / 1023.0) * 3.3;  // Convert to voltage (0-3.3V range)
   float temperature = voltage * 100.0;         // LM35: 10mV/°C = 0.01V/°C
   
@@ -67,7 +78,22 @@ void readSensors() {
     return;  // Invalid reading, skip update
   }
   
-  currentTemp = temperature;
+  // Moving average filter to smooth readings
+  tempReadings[tempIndex] = temperature;
+  tempIndex = (tempIndex + 1) % TEMP_SAMPLES;
+  
+  if (tempIndex == 0) {
+    tempArrayFilled = true;  // Array has been filled at least once
+  }
+  
+  // Calculate average
+  float sum = 0;
+  int count = tempArrayFilled ? TEMP_SAMPLES : tempIndex;
+  for (int i = 0; i < count; i++) {
+    sum += tempReadings[i];
+  }
+  
+  currentTemp = sum / count;
 }
 
 void controlTemperature() {
